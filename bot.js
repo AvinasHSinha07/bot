@@ -1,24 +1,21 @@
 const express = require('express');
 const TelegramBot = require('node-telegram-bot-api');
-const { MongoClient, ObjectId } = require('mongodb');
+const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
 
 dotenv.config();
 
 const token = process.env.TELEGRAM_TOKEN;
-// const bot = new TelegramBot(token, { polling: true });
+const webhookUrl = process.env.WEBHOOK_URL || 'https://bot-nine-blush.vercel.app'; // Adjust this to your Vercel deployment URL
 
 const bot = new TelegramBot(token, { polling: true });
-// const bot = new TelegramBot(token);
-const webhookUrl = process.env.WEBHOOK_URL || 'https://bot-nine-blush.vercel.app/';
-console.log(webhookUrl)
 bot.setWebHook(`${webhookUrl}/bot${token}`);
-// console.log((bot.setWebHook(`${webhookUrl}/bot${token}`)))
-
-
 
 const uri = process.env.MONGODB_URI;
-const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
+const client = new MongoClient(uri, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
 
 let db;
 
@@ -162,19 +159,18 @@ bot.onText(/\/help/, (msg) => {
   bot.sendMessage(chatId, helpMessage);
 });
 
+// Start Express server to keep bot alive (required for platforms like Vercel)
+app.use(express.json());
+
+// Route to handle updates from Telegram
 app.post(`/bot${token}`, (req, res) => {
   bot.processUpdate(req.body);
   res.sendStatus(200);
 });
 
+// Route to check if bot is running
 app.get('/', (req, res) => {
   res.send('Bot is running');
-});
-
-// Start the Express server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Bot is running on port ${PORT}`);
 });
 
 // Error handling
@@ -182,14 +178,18 @@ bot.on('polling_error', (err) => {
   console.error(err);
 });
 
-// Handle unhandled rejections
 process.on('unhandledRejection', (reason, p) => {
   console.error('Unhandled Rejection at:', p, 'reason:', reason);
 });
 
-// Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
+});
+
+// Start the Express server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Bot is running on port ${PORT}`);
 });
 
 console.log('Telegram bot is running...');
