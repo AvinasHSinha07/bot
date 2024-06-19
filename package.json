@@ -2,7 +2,7 @@
   "name": "bot",
   "version": "1.0.0",
   "description": "",
-  "main": "bot.js",
+  "main": "index.js",
   "scripts": {
     "start": "node api/bot.js"
   },
@@ -11,6 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "dotenv": "^16.4.5",
+    "express": "^4.19.2",
     "mongodb": "^6.7.0",
     "mongoose": "^8.4.3",
     "node-telegram-bot-api": "^0.66.0",
