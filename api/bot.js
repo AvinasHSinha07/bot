@@ -10,7 +10,7 @@ const token = process.env.TELEGRAM_TOKEN;
 
 const bot = new TelegramBot(token, { polling: true });
 // const bot = new TelegramBot(token);
-const webhookUrl = process.env.WEBHOOK_URL || 'https://bot-gopxkvct4-avinash-sinhas-projects-b5b18a44.vercel.app/';
+const webhookUrl = process.env.WEBHOOK_URL || 'https://bot-nine-blush.vercel.app/';
 console.log(webhookUrl)
 bot.setWebHook(`${webhookUrl}/bot${token}`);
 // console.log((bot.setWebHook(`${webhookUrl}/bot${token}`)))
