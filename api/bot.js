@@ -8,9 +8,13 @@ dotenv.config();
 const token = process.env.TELEGRAM_TOKEN;
 // const bot = new TelegramBot(token, { polling: true });
 
-const bot = new TelegramBot(token);
-const webhookUrl = process.env.WEBHOOK_URL || 'https://bot-nine-blush.vercel.app.vercel.app'; // Ensure this matches your Vercel deployment URL
+const bot = new TelegramBot(token, { polling: true });
+// const bot = new TelegramBot(token);
+const webhookUrl = process.env.WEBHOOK_URL || 'https://bot-gopxkvct4-avinash-sinhas-projects-b5b18a44.vercel.app/';
+console.log(webhookUrl)
 bot.setWebHook(`${webhookUrl}/bot${token}`);
+// console.log((bot.setWebHook(`${webhookUrl}/bot${token}`)))
+
 
 
 const uri = process.env.MONGODB_URI;
@@ -158,13 +162,10 @@ bot.onText(/\/help/, (msg) => {
   bot.sendMessage(chatId, helpMessage);
 });
 
-// HTTP endpoint to keep bot alive (required for platforms like Vercel)
-// Express endpoint to handle incoming updates from Telegram
 app.post(`/bot${token}`, (req, res) => {
   bot.processUpdate(req.body);
   res.sendStatus(200);
 });
-
 
 app.get('/', (req, res) => {
   res.send('Bot is running');
