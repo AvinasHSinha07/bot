@@ -1,0 +1,174 @@
+const TelegramBot = require('node-telegram-bot-api');
+const { MongoClient, ObjectId } = require('mongodb');
+const dotenv = require('dotenv');
+
+dotenv.config();
+
+const token = process.env.TELEGRAM_TOKEN;
+const bot = new TelegramBot(token, { polling: true });
+
+const uri = process.env.MONGODB_URI;
+const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
+
+let db;
+
+client.connect()
+  .then(() => {
+    console.log("Connected to MongoDB!");
+    db = client.db();
+  })
+  .catch(err => console.error("MongoDB connection error:", err));
+
+const bidsCollection = () => db.collection("bids");
+const usersCollection = () => db.collection("users");
+
+// Start command
+bot.onText(/\/start/, (msg) => {
+  const chatId = msg.chat.id;
+  bot.sendMessage(chatId, 'Welcome! Use /register to register for bidding.');
+});
+
+// Register command
+bot.onText(/\/register/, async (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  const username = msg.from.username;
+
+  try {
+    // Check if user is already registered
+    const existingUser = await usersCollection().findOne({ userId });
+    if (existingUser) {
+      return bot.sendMessage(chatId, 'You are already registered.');
+    }
+
+    // Insert new user into database
+    await usersCollection().insertOne({
+      userId,
+      username,
+      balance: 1000, 
+      registeredAt: new Date()
+    });
+
+    bot.sendMessage(chatId, 'You are now registered for bidding.');
+  } catch (err) {
+    console.error(err);
+    bot.sendMessage(chatId, 'Error registering for bidding.');
+  }
+});
+
+// Bid command
+bot.onText(/\/bid (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  const bidAmount = parseFloat(match[1]);
+
+  try {
+    // Check if user is registered
+    const user = await usersCollection().findOne({ userId });
+    if (!user) {
+      return bot.sendMessage(chatId, 'You are not registered. Please use /register to register.');
+    }
+
+    // Check if bid amount is valid
+    if (isNaN(bidAmount) || bidAmount <= 0) {
+      return bot.sendMessage(chatId, 'Please enter a valid bid amount.');
+    }
+
+    // Check if user has sufficient balance
+    if (bidAmount > user.balance) {
+      return bot.sendMessage(chatId, 'You do not have sufficient balance to place this bid.');
+    }
+
+    // Get current highest bid
+    const highestBid = await getHighestBid();
+
+    // Implement bidding strategy (e.g., bid 10% higher than current highest bid)
+    const minBidIncrement = highestBid ? highestBid.amount * 0.1 : 0; // Example: Minimum 10% increment
+    const suggestedBid = highestBid ? highestBid.amount + minBidIncrement : bidAmount;
+
+    // Place bid if it's higher than the current highest bid
+    if (!highestBid || bidAmount > highestBid.amount) {
+      await bidsCollection().insertOne({ userId, amount: bidAmount, timestamp: new Date() });
+      // Deduct bid amount from user's balance
+      await usersCollection().updateOne({ userId }, { $inc: { balance: -bidAmount } });
+      bot.sendMessage(chatId, `Your bid of $${bidAmount} has been placed.`);
+    } else {
+      bot.sendMessage(chatId, `Your bid of $${bidAmount} is not higher than the current highest bid.`);
+    }
+  } catch (err) {
+    console.error(err);
+    bot.sendMessage(chatId, 'Error placing your bid.');
+  }
+});
+
+// Current bid command
+bot.onText(/\/currentbid/, async (msg) => {
+  const chatId = msg.chat.id;
+
+  try {
+    const highestBid = await getHighestBid();
+    if (!highestBid) {
+      return bot.sendMessage(chatId, 'No bids have been placed yet.');
+    }
+    const user = await usersCollection().findOne({ userId: highestBid.userId });
+    bot.sendMessage(chatId, `The current highest bid is $${highestBid.amount} placed by @${user.username}.`);
+  } catch (err) {
+    console.error(err);
+    bot.sendMessage(chatId, 'Error fetching the current highest bid.');
+  }
+});
+
+// Balance command
+bot.onText(/\/balance/, async (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+
+  try {
+    // Fetch user's balance
+    const user = await usersCollection().findOne({ userId });
+    if (!user) {
+      return bot.sendMessage(chatId, 'You are not registered. Please use /register to register.');
+    }
+
+    bot.sendMessage(chatId, `Your current balance is $${user.balance}.`);
+  } catch (err) {
+    console.error(err);
+    bot.sendMessage(chatId, 'Error fetching your balance.');
+  }
+});
+
+// Function to get the current highest bid
+async function getHighestBid() {
+  const highestBid = await bidsCollection().find().sort({ amount: -1 }).limit(1).toArray();
+  return highestBid[0];
+}
+
+// Handle /help command
+bot.onText(/\/help/, (msg) => {
+  const chatId = msg.chat.id;
+  const helpMessage = `Commands:
+  /start - Start the bidding process
+  /register - Register for bidding
+  /bid <amount> - Place a bid with the specified amount
+  /currentbid - View the current highest bid
+  /balance - View your current balance
+  /help - Display this help message`;
+  bot.sendMessage(chatId, helpMessage);
+});
+
+// Error handling
+bot.on('polling_error', (err) => {
+  console.error(err);
+});
+
+// Handle unhandled rejections
+process.on('unhandledRejection', (reason, p) => {
+  console.error('Unhandled Rejection at:', p, 'reason:', reason);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
+console.log('Telegram bot is running...');
